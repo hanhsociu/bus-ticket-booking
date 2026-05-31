@@ -1,0 +1,32 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: bus_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: bus_booking
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: bus_user
+      MYSQL_PASSWORD: secret
+    ports:
+      - "3307:3306"
+    volumes:
+      - bus_mysql_data:/var/lib/mysql
+
+  redis:
+    image: redis:7-alpine
+    container_name: bus_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  mailpit:
+    image: axllent/mailpit
+    container_name: bus_mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+volumes:
+  bus_mysql_data:
