@@ -13,13 +13,28 @@ return new class extends Migration
     {
         Schema::create('booking_histories', function (Blueprint $table) {
             $table->id();
+
+            $table->foreignId('booking_id')
+                ->constrained('bookings')
+                ->cascadeOnUpdate()
+                ->cascadeOnDelete();
+
+            $table->string('action');
+
+            $table->string('old_status')->nullable();
+            $table->string('new_status')->nullable();
+
+            $table->text('note')->nullable();
+
+            $table->json('metadata')->nullable();
+
             $table->timestamps();
+
+            $table->index('booking_id');
+            $table->index('action');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('booking_histories');

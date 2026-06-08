@@ -13,13 +13,22 @@ return new class extends Migration
     {
         Schema::create('bus_types', function (Blueprint $table) {
             $table->id();
+
+            $table->string('name');
+            $table->text('description')->nullable();
+
+            $table->unsignedInteger('total_seats');
+
+            $table->json('seat_layout')->nullable();
+
+            $table->boolean('is_active')->default(true);
+
             $table->timestamps();
+
+            $table->index('is_active');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('bus_types');

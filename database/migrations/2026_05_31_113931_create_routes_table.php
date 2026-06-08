@@ -13,13 +13,23 @@ return new class extends Migration
     {
         Schema::create('routes', function (Blueprint $table) {
             $table->id();
+
+            $table->string('code')->unique();
+            $table->string('from_location');
+            $table->string('to_location');
+
+            $table->unsignedInteger('distance_km')->nullable();
+            $table->unsignedInteger('estimated_duration_minutes')->nullable();
+
+            $table->boolean('is_active')->default(true);
+
             $table->timestamps();
+
+            $table->index(['from_location', 'to_location']);
+            $table->index('is_active');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('routes');
