@@ -4,6 +4,10 @@ use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\PayOSPaymentController;
 use App\Http\Controllers\Api\RouteController;
 use App\Http\Controllers\Api\TripController;
+
+//ADMIN
+use App\Http\Controllers\Api\Admin\AdminTripController;
+
 use Illuminate\Support\Facades\Route;
 
 Route::get('/routes', [RouteController::class, 'index']);
@@ -24,3 +28,11 @@ Route::post('/payments/{payment}/fake-success', [PayOSPaymentController::class, 
 // user cancel bookings
 Route::get('/users/{user}/bookings', [BookingController::class, 'userBookings']);
 Route::post('/bookings/{booking}/cancel', [BookingController::class, 'cancel']);
+
+// ADMIN
+Route::prefix('admin')->group(function () {
+    Route::get('/trips', [AdminTripController::class, 'index']);
+    Route::post('/trips', [AdminTripController::class, 'store']);
+    Route::get('/trips/{trip}', [AdminTripController::class, 'show']);
+    Route::post('/trips/{trip}/cancel', [AdminTripController::class, 'cancel']);
+});
