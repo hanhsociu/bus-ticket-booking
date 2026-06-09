@@ -12,6 +12,8 @@ use App\Models\TripSeat;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use App\Models\User;
+use Illuminate\Http\Request;
 
 class BookingController extends Controller
 {
@@ -142,5 +144,81 @@ class BookingController extends Controller
         } while (Booking::where('booking_code', $code)->exists());
 
         return $code;
+    }
+
+    // User CANCEL BOOKING
+    public function userBookings(User $user): JsonResponse
+    {
+        $bookings = Booking::query()
+            ->with([
+                'trip.route:id,code,from_location,to_location',
+                'trip.bus:id,name,license_plate',
+                'items:id,booking_id,trip_seat_id,seat_number,price',
+                'payments:id,booking_id,payment_code,method,status,amount,paid_at',
+            ])
+            ->where('user_id', $user->id)
+            ->latest()
+            ->paginate(10);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Lấy danh sách booking của người dùng thành công.',
+            'data' => $bookings,
+        ]);
+    }
+
+    public function cancel(Booking $booking): JsonResponse
+    {
+        try {
+            DB::transaction(function () use ($booking) {
+                $booking = Booking::query()
+                    ->where('id', $booking->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if ($booking->status !== 'pending_payment') {
+                    abort(422, 'Chỉ có thể hủy booking đang chờ thanh toán.');
+                }
+
+                TripSeat::query()
+                    ->where('booking_id', $booking->id)
+                    ->where('status', 'reserved')
+                    ->update([
+                        'status' => 'available',
+                        'locked_until' => null,
+                        'booking_id' => null,
+                    ]);
+
+                $booking->update([
+                    'status' => 'cancelled',
+                    'cancelled_at' => now(),
+                ]);
+
+                BookingHistory::create([
+                    'booking_id' => $booking->id,
+                    'action' => 'booking_cancelled',
+                    'old_status' => 'pending_payment',
+                    'new_status' => 'cancelled',
+                    'note' => 'Người dùng hủy booking trước khi thanh toán.',
+                    'metadata' => [
+                        'cancelled_by' => 'user',
+                    ],
+                ]);
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Hủy booking thành công.',
+                'data' => $booking->fresh([
+                    'items',
+                    'histories',
+                ]),
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 }

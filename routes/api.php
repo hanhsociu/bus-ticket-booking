@@ -21,3 +21,6 @@ Route::get('/payments/payos/cancel', [PayOSPaymentController::class, 'cancel']);
 Route::post('/payments/payos/webhook', [PayOSPaymentController::class, 'webhook']);
 // fake 
 Route::post('/payments/{payment}/fake-success', [PayOSPaymentController::class, 'fakeSuccess']);
+// user cancel bookings
+Route::get('/users/{user}/bookings', [BookingController::class, 'userBookings']);
+Route::post('/bookings/{booking}/cancel', [BookingController::class, 'cancel']);
