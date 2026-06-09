@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\BookingController;
+use App\Http\Controllers\Api\PayOSPaymentController;
 use App\Http\Controllers\Api\RouteController;
 use App\Http\Controllers\Api\TripController;
 use Illuminate\Support\Facades\Route;
@@ -13,3 +14,8 @@ Route::get('/trips/{trip}/seats', [TripController::class, 'seats']);
 
 Route::post('/bookings', [BookingController::class, 'store']);
 Route::get('/bookings/{booking}', [BookingController::class, 'show']);
+
+Route::post('/payments/payos/create', [PayOSPaymentController::class, 'create']);
+Route::get('/payments/payos/return', [PayOSPaymentController::class, 'return']);
+Route::get('/payments/payos/cancel', [PayOSPaymentController::class, 'cancel']);
+Route::post('/payments/payos/webhook', [PayOSPaymentController::class, 'webhook']);
