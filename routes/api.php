@@ -19,3 +19,5 @@ Route::post('/payments/payos/create', [PayOSPaymentController::class, 'create'])
 Route::get('/payments/payos/return', [PayOSPaymentController::class, 'return']);
 Route::get('/payments/payos/cancel', [PayOSPaymentController::class, 'cancel']);
 Route::post('/payments/payos/webhook', [PayOSPaymentController::class, 'webhook']);
+// fake 
+Route::post('/payments/{payment}/fake-success', [PayOSPaymentController::class, 'fakeSuccess']);

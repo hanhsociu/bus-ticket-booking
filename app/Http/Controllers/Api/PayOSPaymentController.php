@@ -4,17 +4,19 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
-use App\Models\BookingHistory;
 use App\Models\Payment;
-use App\Models\TripSeat;
+use App\Services\BookingPaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PayOS\PayOS;
 
 class PayOSPaymentController extends Controller
 {
+    public function __construct(
+        private readonly BookingPaymentService $bookingPaymentService
+    ) {}
+
     private function payOS(): PayOS
     {
         return new PayOS(
@@ -58,11 +60,33 @@ class PayOSPaymentController extends Controller
             ], 422);
         }
 
+        /**
+         * Nếu booking đã có payment pending và đã lưu checkoutUrl,
+         * trả lại link cũ để tránh tạo trùng orderCode trên PayOS.
+         */
         $payment = Payment::query()
             ->where('booking_id', $booking->id)
             ->where('status', 'pending')
             ->latest()
             ->first();
+
+        if ($payment && !empty($payment->gateway_response['checkoutUrl'])) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Booking đã có link thanh toán PayOS. Trả về link hiện có.',
+                'data' => [
+                    'booking_id' => $booking->id,
+                    'booking_code' => $booking->booking_code,
+                    'payment_id' => $payment->id,
+                    'payment_code' => $payment->payment_code,
+                    'amount' => (int) $payment->amount,
+                    'checkout_url' => $payment->gateway_response['checkoutUrl'] ?? null,
+                    'qr_code' => $payment->gateway_response['qrCode'] ?? null,
+                    'payment_link_id' => $payment->gateway_response['paymentLinkId'] ?? null,
+                    'expired_at' => $booking->expired_at,
+                ],
+            ]);
+        }
 
         if (!$payment) {
             $payment = Payment::create([
@@ -74,15 +98,14 @@ class PayOSPaymentController extends Controller
             ]);
         }
 
-        /*
+        /**
          * PayOS orderCode nên là số.
-         * Dùng payment id để khi webhook về ta tìm lại payment dễ dàng.
+         * Dùng payment id để webhook/return tìm lại payment dễ dàng.
          */
         $orderCode = (int) $payment->id;
 
-        /*
+        /**
          * PayOS description nên ngắn, không dấu, không ký tự đặc biệt.
-         * Để an toàn ta dùng BUS + booking_id.
          */
         $description = 'BUS' . $booking->id;
 
@@ -104,7 +127,7 @@ class PayOSPaymentController extends Controller
         try {
             $paymentLink = $this->payOS()->paymentRequests->create($paymentData);
 
-            $paymentLinkData = json_decode(json_encode($paymentLink), true);
+            $paymentLinkData = $this->objectToArray($paymentLink);
 
             $payment->update([
                 'gateway_response' => $paymentLinkData,
@@ -127,6 +150,10 @@ class PayOSPaymentController extends Controller
                 ],
             ]);
         } catch (\Throwable $e) {
+            /**
+             * Nếu PayOS báo orderCode đã tồn tại nhưng local chưa lưu checkoutUrl,
+             * ta báo rõ để dev biết tạo booking mới hoặc clean payment cũ.
+             */
             return response()->json([
                 'success' => false,
                 'message' => 'Không tạo được link thanh toán PayOS.',
@@ -137,18 +164,74 @@ class PayOSPaymentController extends Controller
 
     public function return(Request $request): JsonResponse
     {
-        return response()->json([
-            'success' => true,
-            'message' => 'PayOS đã chuyển hướng về hệ thống. Trạng thái chính thức sẽ được xử lý qua webhook.',
-            'data' => $request->query(),
-        ]);
+        $orderCode = $request->integer('orderCode');
+        $code = $request->query('code');
+        $status = strtoupper((string) $request->query('status'));
+
+        if (!$orderCode) {
+            return response()->json([
+                'success' => true,
+                'message' => 'PayOS đã chuyển hướng về hệ thống nhưng chưa có orderCode.',
+                'data' => $request->query(),
+            ]);
+        }
+
+        $payment = Payment::query()
+            ->where('id', $orderCode)
+            ->first();
+
+        if (!$payment) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy payment tương ứng với orderCode.',
+                'data' => $request->query(),
+            ], 404);
+        }
+
+        try {
+            /**
+             * Nếu return báo thành công thì xác nhận luôn.
+             * Thực tế webhook vẫn là nguồn đáng tin hơn, nhưng return giúp local/dev test dễ hơn.
+             */
+            if ($code === '00' || $status === 'PAID') {
+                $confirmedPayment = $this->bookingPaymentService->confirmPayment(
+                    payment: $payment,
+                    paidAmount: (int) $payment->amount,
+                    gatewayResponse: [
+                        'source' => 'payos_return',
+                        'query' => $request->query(),
+                    ],
+                    action: 'payment_success_return',
+                    note: 'PayOS return báo thanh toán thành công, hệ thống xác nhận vé.'
+                );
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Thanh toán PayOS thành công qua return URL.',
+                    'data' => $confirmedPayment,
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'PayOS đã chuyển hướng về hệ thống. Trạng thái chính thức sẽ được xử lý qua webhook.',
+                'data' => $request->query(),
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không xử lý được PayOS return.',
+                'error' => $e->getMessage(),
+                'data' => $request->query(),
+            ], 422);
+        }
     }
 
     public function cancel(Request $request): JsonResponse
     {
         return response()->json([
             'success' => false,
-            'message' => 'Người dùng đã hủy thanh toán PayOS.',
+            'message' => 'Người dùng đã hủy thanh toán PayOS. Booking vẫn được giữ cho đến khi hết hạn.',
             'data' => $request->query(),
         ]);
     }
@@ -156,10 +239,6 @@ class PayOSPaymentController extends Controller
     public function webhook(Request $request): JsonResponse
     {
         try {
-            /*
-             * PayOS webhook phải verify trước khi tin dữ liệu.
-             * Theo SDK, verify() sẽ trả về WebhookData object nếu hợp lệ.
-             */
             $verifiedData = $this->payOS()->webhooks->verify($request->all());
 
             $orderCode = $verifiedData->orderCode ?? null;
@@ -184,101 +263,34 @@ class PayOSPaymentController extends Controller
                 ], 404);
             }
 
-            DB::transaction(function () use ($payment, $amount, $code, $verifiedData) {
-                $payment = Payment::query()
-                    ->where('id', $payment->id)
-                    ->lockForUpdate()
-                    ->first();
+            $gatewayResponse = $this->objectToArray($verifiedData);
 
-                $booking = Booking::query()
-                    ->where('id', $payment->booking_id)
-                    ->lockForUpdate()
-                    ->first();
+            if ($code !== '00') {
+                $failedPayment = $this->bookingPaymentService->markPaymentFailed(
+                    payment: $payment,
+                    gatewayResponse: $gatewayResponse,
+                    note: 'PayOS webhook báo thanh toán không thành công.'
+                );
 
-                if (!$booking) {
-                    abort(404, 'Booking không tồn tại.');
-                }
-
-                /*
-                 * Idempotency:
-                 * Nếu webhook gửi lại nhiều lần thì không xử lý trùng.
-                 */
-                if ($payment->status === 'success' && $booking->status === 'confirmed') {
-                    return;
-                }
-
-                if ((int) $payment->amount !== (int) $amount) {
-                    abort(422, 'Số tiền thanh toán không khớp.');
-                }
-
-                if ($booking->status !== 'pending_payment') {
-                    abort(422, 'Booking không còn ở trạng thái chờ thanh toán.');
-                }
-
-                if ($booking->expired_at && $booking->expired_at->isPast()) {
-                    abort(422, 'Booking đã quá hạn thanh toán.');
-                }
-
-                /*
-                 * PayOS thường trả code "00" cho giao dịch thành công.
-                 */
-                if ($code !== '00') {
-                    $payment->update([
-                        'status' => 'failed',
-                        'gateway_response' => json_decode(json_encode($verifiedData), true),
-                    ]);
-
-                    BookingHistory::create([
-                        'booking_id' => $booking->id,
-                        'action' => 'payment_failed',
-                        'old_status' => $booking->status,
-                        'new_status' => $booking->status,
-                        'note' => 'Thanh toán PayOS không thành công.',
-                        'metadata' => [
-                            'payment_id' => $payment->id,
-                            'payos_code' => $code,
-                        ],
-                    ]);
-
-                    return;
-                }
-
-                $payment->update([
-                    'status' => 'success',
-                    'paid_at' => now(),
-                    'gateway_response' => json_decode(json_encode($verifiedData), true),
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Webhook PayOS đã ghi nhận thanh toán thất bại.',
+                    'data' => $failedPayment,
                 ]);
+            }
 
-                TripSeat::query()
-                    ->where('booking_id', $booking->id)
-                    ->where('status', 'reserved')
-                    ->update([
-                        'status' => 'booked',
-                        'locked_until' => null,
-                    ]);
-
-                $booking->update([
-                    'status' => 'confirmed',
-                    'confirmed_at' => now(),
-                ]);
-
-                BookingHistory::create([
-                    'booking_id' => $booking->id,
-                    'action' => 'payment_success',
-                    'old_status' => 'pending_payment',
-                    'new_status' => 'confirmed',
-                    'note' => 'Thanh toán PayOS thành công, hệ thống xác nhận vé.',
-                    'metadata' => [
-                        'payment_id' => $payment->id,
-                        'amount' => $amount,
-                        'payos_order_code' => $payment->id,
-                    ],
-                ]);
-            });
+            $confirmedPayment = $this->bookingPaymentService->confirmPayment(
+                payment: $payment,
+                paidAmount: (int) $amount,
+                gatewayResponse: $gatewayResponse,
+                action: 'payment_success_webhook',
+                note: 'PayOS webhook báo thanh toán thành công, hệ thống xác nhận vé.'
+            );
 
             return response()->json([
                 'success' => true,
-                'message' => 'Webhook PayOS xử lý thành công.',
+                'message' => 'Webhook PayOS xử lý thanh toán thành công.',
+                'data' => $confirmedPayment,
             ]);
         } catch (\Throwable $e) {
             return response()->json([
@@ -289,6 +301,33 @@ class PayOSPaymentController extends Controller
         }
     }
 
+    public function fakeSuccess(Payment $payment): JsonResponse
+    {
+        try {
+            $confirmedPayment = $this->bookingPaymentService->confirmPayment(
+                payment: $payment,
+                paidAmount: (int) $payment->amount,
+                gatewayResponse: [
+                    'source' => 'fake_success',
+                    'message' => 'Giả lập thanh toán thành công trong môi trường local.',
+                ],
+                action: 'payment_success_fake',
+                note: 'Giả lập thanh toán thành công trong môi trường local.'
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Giả lập thanh toán thành công.',
+                'data' => $confirmedPayment,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
     private function generatePaymentCode(): string
     {
         do {
@@ -296,5 +335,10 @@ class PayOSPaymentController extends Controller
         } while (Payment::where('payment_code', $code)->exists());
 
         return $code;
+    }
+
+    private function objectToArray(mixed $data): array
+    {
+        return json_decode(json_encode($data), true) ?? [];
     }
 }
