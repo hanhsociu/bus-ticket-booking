@@ -37,6 +37,13 @@ class PayOSPaymentController extends Controller
             ->where('id', $data['booking_id'])
             ->firstOrFail();
 
+        if ((int) $booking->user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bạn không có quyền thanh toán booking này.',
+            ], 403);
+        }
+
         if ($booking->status !== 'pending_payment') {
             return response()->json([
                 'success' => false,
@@ -60,10 +67,6 @@ class PayOSPaymentController extends Controller
             ], 422);
         }
 
-        /**
-         * Nếu booking đã có payment pending và đã lưu checkoutUrl,
-         * trả lại link cũ để tránh tạo trùng orderCode trên PayOS.
-         */
         $payment = Payment::query()
             ->where('booking_id', $booking->id)
             ->where('status', 'pending')
@@ -98,15 +101,7 @@ class PayOSPaymentController extends Controller
             ]);
         }
 
-        /**
-         * PayOS orderCode nên là số.
-         * Dùng payment id để webhook/return tìm lại payment dễ dàng.
-         */
         $orderCode = (int) $payment->id;
-
-        /**
-         * PayOS description nên ngắn, không dấu, không ký tự đặc biệt.
-         */
         $description = 'BUS' . $booking->id;
 
         $paymentData = [
@@ -150,10 +145,6 @@ class PayOSPaymentController extends Controller
                 ],
             ]);
         } catch (\Throwable $e) {
-            /**
-             * Nếu PayOS báo orderCode đã tồn tại nhưng local chưa lưu checkoutUrl,
-             * ta báo rõ để dev biết tạo booking mới hoặc clean payment cũ.
-             */
             return response()->json([
                 'success' => false,
                 'message' => 'Không tạo được link thanh toán PayOS.',
@@ -189,10 +180,6 @@ class PayOSPaymentController extends Controller
         }
 
         try {
-            /**
-             * Nếu return báo thành công thì xác nhận luôn.
-             * Thực tế webhook vẫn là nguồn đáng tin hơn, nhưng return giúp local/dev test dễ hơn.
-             */
             if ($code === '00' || $status === 'PAID') {
                 $confirmedPayment = $this->bookingPaymentService->confirmPayment(
                     payment: $payment,
@@ -240,15 +227,16 @@ class PayOSPaymentController extends Controller
     {
         try {
             $verifiedData = $this->payOS()->webhooks->verify($request->all());
+            $data = $this->objectToArray($verifiedData);
 
-            $orderCode = $verifiedData->orderCode ?? null;
-            $amount = $verifiedData->amount ?? null;
-            $code = $verifiedData->code ?? null;
+            $orderCode = (int) ($data['orderCode'] ?? 0);
+            $amount = (int) ($data['amount'] ?? 0);
+            $code = (string) ($data['code'] ?? '');
 
             if (!$orderCode) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Webhook thiếu orderCode.',
+                    'message' => 'Webhook không có orderCode.',
                 ], 400);
             }
 
@@ -258,38 +246,62 @@ class PayOSPaymentController extends Controller
 
             if (!$payment) {
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Không tìm thấy payment tương ứng.',
-                ], 404);
+                    'success' => true,
+                    'message' => 'Không tìm thấy payment, bỏ qua webhook.',
+                ]);
             }
 
-            $gatewayResponse = $this->objectToArray($verifiedData);
-
-            if ($code !== '00') {
-                $failedPayment = $this->bookingPaymentService->markPaymentFailed(
+            if ($amount > 0 && $amount !== (int) $payment->amount) {
+                $this->bookingPaymentService->markPaymentFailed(
                     payment: $payment,
-                    gatewayResponse: $gatewayResponse,
-                    note: 'PayOS webhook báo thanh toán không thành công.'
+                    gatewayResponse: [
+                        'source' => 'payos_webhook',
+                        'payload' => $request->all(),
+                        'verified_data' => $data,
+                        'reason' => 'amount_mismatch',
+                    ],
+                    note: 'PayOS webhook amount không khớp.'
                 );
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Webhook PayOS đã ghi nhận thanh toán thất bại.',
+                    'message' => 'Amount không khớp, đã đánh dấu payment failed.',
+                ]);
+            }
+
+            if ($code !== '00') {
+                $failedPayment = $this->bookingPaymentService->markPaymentFailed(
+                    payment: $payment,
+                    gatewayResponse: [
+                        'source' => 'payos_webhook',
+                        'payload' => $request->all(),
+                        'verified_data' => $data,
+                    ],
+                    note: 'PayOS webhook báo thanh toán thất bại.'
+                );
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'PayOS webhook báo thanh toán thất bại.',
                     'data' => $failedPayment,
                 ]);
             }
 
             $confirmedPayment = $this->bookingPaymentService->confirmPayment(
                 payment: $payment,
-                paidAmount: (int) $amount,
-                gatewayResponse: $gatewayResponse,
+                paidAmount: $amount,
+                gatewayResponse: [
+                    'source' => 'payos_webhook',
+                    'payload' => $request->all(),
+                    'verified_data' => $data,
+                ],
                 action: 'payment_success_webhook',
                 note: 'PayOS webhook báo thanh toán thành công, hệ thống xác nhận vé.'
             );
 
             return response()->json([
                 'success' => true,
-                'message' => 'Webhook PayOS xử lý thanh toán thành công.',
+                'message' => 'Xử lý PayOS webhook thành công.',
                 'data' => $confirmedPayment,
             ]);
         } catch (\Throwable $e) {
@@ -309,21 +321,22 @@ class PayOSPaymentController extends Controller
                 paidAmount: (int) $payment->amount,
                 gatewayResponse: [
                     'source' => 'fake_success',
-                    'message' => 'Giả lập thanh toán thành công trong môi trường local.',
+                    'note' => 'Admin giả lập thanh toán thành công trong môi trường dev.',
                 ],
                 action: 'payment_success_fake',
-                note: 'Giả lập thanh toán thành công trong môi trường local.'
+                note: 'Admin giả lập thanh toán thành công, hệ thống xác nhận vé.'
             );
 
             return response()->json([
                 'success' => true,
-                'message' => 'Giả lập thanh toán thành công.',
+                'message' => 'Fake thanh toán thành công.',
                 'data' => $confirmedPayment,
             ]);
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => 'Không thể fake thanh toán thành công.',
+                'error' => $e->getMessage(),
             ], 422);
         }
     }
@@ -337,8 +350,8 @@ class PayOSPaymentController extends Controller
         return $code;
     }
 
-    private function objectToArray(mixed $data): array
+    private function objectToArray(mixed $value): array
     {
-        return json_decode(json_encode($data), true) ?? [];
+        return json_decode(json_encode($value), true) ?? [];
     }
 }

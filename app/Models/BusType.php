@@ -29,4 +29,11 @@ class BusType extends Model
     {
         return $this->hasMany(Seat::class);
     }
+
+    public function tripsExists(): bool
+    {
+        return $this->buses()
+            ->whereHas('trips')
+            ->exists();
+    }
 }

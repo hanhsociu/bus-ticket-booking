@@ -10,10 +10,9 @@ use App\Models\BookingItem;
 use App\Models\Trip;
 use App\Models\TripSeat;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use App\Models\User;
-use Illuminate\Http\Request;
 
 class BookingController extends Controller
 {
@@ -22,7 +21,7 @@ class BookingController extends Controller
         $data = $request->validated();
 
         try {
-            $booking = DB::transaction(function () use ($data) {
+            $booking = DB::transaction(function () use ($data, $request) {
                 $trip = Trip::query()
                     ->where('id', $data['trip_id'])
                     ->where('status', 'scheduled')
@@ -35,7 +34,7 @@ class BookingController extends Controller
 
                 $tripSeatIds = $data['trip_seat_ids'];
 
-                /**
+                /*
                  * lockForUpdate rất quan trọng.
                  * Nó khóa các dòng ghế đang được xử lý trong transaction.
                  * Nhờ đó tránh 2 người cùng đặt một ghế cùng lúc.
@@ -43,6 +42,7 @@ class BookingController extends Controller
                 $tripSeats = TripSeat::query()
                     ->where('trip_id', $trip->id)
                     ->whereIn('id', $tripSeatIds)
+                    ->with('seat')
                     ->lockForUpdate()
                     ->get();
 
@@ -61,7 +61,7 @@ class BookingController extends Controller
                 $totalAmount = $trip->base_price * $tripSeats->count();
 
                 $booking = Booking::create([
-                    'user_id' => $data['user_id'],
+                    'user_id' => $request->user()->id,
                     'trip_id' => $trip->id,
                     'booking_code' => $this->generateBookingCode(),
                     'status' => 'pending_payment',
@@ -93,6 +93,7 @@ class BookingController extends Controller
                     'new_status' => 'pending_payment',
                     'note' => 'Khách hàng tạo booking và giữ ghế trong 10 phút.',
                     'metadata' => [
+                        'user_id' => $request->user()->id,
                         'trip_id' => $trip->id,
                         'trip_seat_ids' => $tripSeatIds,
                         'total_amount' => $totalAmount,
@@ -102,6 +103,8 @@ class BookingController extends Controller
                 return $booking->load([
                     'user:id,name,email,phone',
                     'trip:id,code,route_id,bus_id,departure_time,arrival_time,base_price,status',
+                    'trip.route:id,code,from_location,to_location',
+                    'trip.bus:id,name,license_plate',
                     'items:id,booking_id,trip_seat_id,seat_number,price',
                 ]);
             });
@@ -119,8 +122,15 @@ class BookingController extends Controller
         }
     }
 
-    public function show(Booking $booking): JsonResponse
+    public function show(Request $request, Booking $booking): JsonResponse
     {
+        if ((int) $booking->user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bạn không có quyền xem booking này.',
+            ], 403);
+        }
+
         $booking->load([
             'user:id,name,email,phone',
             'trip.route:id,code,from_location,to_location',
@@ -137,44 +147,45 @@ class BookingController extends Controller
         ]);
     }
 
-    private function generateBookingCode(): string
-    {
-        do {
-            $code = 'BK-' . now()->format('Ymd') . '-' . strtoupper(Str::random(6));
-        } while (Booking::where('booking_code', $code)->exists());
-
-        return $code;
-    }
-
-    // User CANCEL BOOKING
-    public function userBookings(User $user): JsonResponse
+    public function myBookings(Request $request): JsonResponse
     {
         $bookings = Booking::query()
+            ->where('user_id', $request->user()->id)
             ->with([
                 'trip.route:id,code,from_location,to_location',
                 'trip.bus:id,name,license_plate',
                 'items:id,booking_id,trip_seat_id,seat_number,price',
                 'payments:id,booking_id,payment_code,method,status,amount,paid_at',
             ])
-            ->where('user_id', $user->id)
             ->latest()
             ->paginate(10);
 
         return response()->json([
             'success' => true,
-            'message' => 'Lấy danh sách booking của người dùng thành công.',
+            'message' => 'Lấy danh sách vé của tôi thành công.',
             'data' => $bookings,
         ]);
     }
 
-    public function cancel(Booking $booking): JsonResponse
+    public function cancel(Request $request, Booking $booking): JsonResponse
     {
+        if ((int) $booking->user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bạn không có quyền hủy booking này.',
+            ], 403);
+        }
+
         try {
-            DB::transaction(function () use ($booking) {
+            $booking = DB::transaction(function () use ($booking, $request) {
                 $booking = Booking::query()
                     ->where('id', $booking->id)
                     ->lockForUpdate()
                     ->firstOrFail();
+
+                if ((int) $booking->user_id !== (int) $request->user()->id) {
+                    abort(403, 'Bạn không có quyền hủy booking này.');
+                }
 
                 if ($booking->status !== 'pending_payment') {
                     abort(422, 'Chỉ có thể hủy booking đang chờ thanh toán.');
@@ -202,23 +213,35 @@ class BookingController extends Controller
                     'note' => 'Người dùng hủy booking trước khi thanh toán.',
                     'metadata' => [
                         'cancelled_by' => 'user',
+                        'user_id' => $request->user()->id,
                     ],
+                ]);
+
+                return $booking->fresh([
+                    'items:id,booking_id,trip_seat_id,seat_number,price',
+                    'histories:id,booking_id,action,old_status,new_status,note,metadata,created_at',
                 ]);
             });
 
             return response()->json([
                 'success' => true,
                 'message' => 'Hủy booking thành công.',
-                'data' => $booking->fresh([
-                    'items',
-                    'histories',
-                ]),
+                'data' => $booking,
             ]);
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], 422);
+            ], $e->getCode() === 403 ? 403 : 422);
         }
+    }
+
+    private function generateBookingCode(): string
+    {
+        do {
+            $code = 'BK-' . now()->format('Ymd') . '-' . strtoupper(Str::random(6));
+        } while (Booking::where('booking_code', $code)->exists());
+
+        return $code;
     }
 }
