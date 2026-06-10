@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\Admin\AdminBusTypeController;
 use App\Http\Controllers\Api\Admin\AdminDashboardController;
 use App\Http\Controllers\Api\Admin\AdminRouteController;
 use App\Http\Controllers\Api\Admin\AdminTripController;
+use App\Http\Controllers\Api\Admin\AdminRefundController;
 
 use App\Http\Controllers\Api\Customer\CustomerDashboardController;
 
@@ -52,6 +53,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/bookings/{booking}', [BookingController::class, 'show']);
     Route::get('/my/bookings', [BookingController::class, 'myBookings']);
     Route::post('/bookings/{booking}/cancel', [BookingController::class, 'cancel']);
+    Route::post('/bookings/{booking}/request-refund', [BookingController::class, 'requestRefund']);
 
     Route::post('/payments/payos/create', [PayOSPaymentController::class, 'create']);
 });
@@ -91,6 +93,10 @@ Route::middleware(['auth:sanctum', 'admin'])
         Route::get('/bookings', [AdminBookingController::class, 'index']);
         Route::get('/bookings/{booking}', [AdminBookingController::class, 'show']);
         Route::post('/bookings/{booking}/cancel', [AdminBookingController::class, 'cancel']);
+
+        Route::get('/refunds', [AdminRefundController::class, 'index']);
+        Route::post('/bookings/{booking}/approve-refund', [AdminRefundController::class, 'approve']);
+        Route::post('/bookings/{booking}/reject-refund', [AdminRefundController::class, 'reject']);
 
         /*
         |--------------------------------------------------------------------------

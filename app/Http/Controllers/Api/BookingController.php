@@ -167,6 +167,86 @@ class BookingController extends Controller
         ]);
     }
 
+    public function requestRefund(Request $request, Booking $booking): JsonResponse
+    {
+        $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        if ((int) $booking->user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bạn không có quyền yêu cầu hoàn vé booking này.',
+            ], 403);
+        }
+
+        try {
+            $booking = DB::transaction(function () use ($booking, $request) {
+                $booking = Booking::query()
+                    ->where('id', $booking->id)
+                    ->with('trip')
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if ((int) $booking->user_id !== (int) $request->user()->id) {
+                    abort(403, 'Bạn không có quyền yêu cầu hoàn vé booking này.');
+                }
+
+                if ($booking->status !== 'confirmed') {
+                    abort(422, 'Chỉ booking đã thanh toán thành công mới được yêu cầu hoàn vé.');
+                }
+
+                if ($booking->trip->departure_time <= now()) {
+                    abort(422, 'Chuyến xe đã khởi hành hoặc đã quá giờ, không thể yêu cầu hoàn vé.');
+                }
+
+                $successPaymentExists = $booking->payments()
+                    ->where('status', 'success')
+                    ->exists();
+
+                if (!$successPaymentExists) {
+                    abort(422, 'Không tìm thấy thanh toán thành công cho booking này.');
+                }
+
+                $booking->update([
+                    'status' => 'refund_requested',
+                ]);
+
+                BookingHistory::create([
+                    'booking_id' => $booking->id,
+                    'action' => 'refund_requested',
+                    'old_status' => 'confirmed',
+                    'new_status' => 'refund_requested',
+                    'note' => $request->input('reason'),
+                    'metadata' => [
+                        'requested_by' => 'customer',
+                        'user_id' => $request->user()->id,
+                    ],
+                ]);
+
+                return $booking->fresh([
+                    'user:id,name,email,phone',
+                    'trip.route:id,code,from_location,to_location',
+                    'trip.bus:id,name,license_plate',
+                    'items:id,booking_id,trip_seat_id,seat_number,price',
+                    'payments:id,booking_id,payment_code,method,status,amount,paid_at',
+                    'histories:id,booking_id,action,old_status,new_status,note,metadata,created_at',
+                ]);
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Gửi yêu cầu hoàn vé thành công. Vui lòng chờ admin xử lý.',
+                'data' => $booking,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], $e->getCode() === 403 ? 403 : 422);
+        }
+    }
+
     public function cancel(Request $request, Booking $booking): JsonResponse
     {
         if ((int) $booking->user_id !== (int) $request->user()->id) {
