@@ -10,6 +10,10 @@ use Illuminate\Support\Facades\DB;
 
 class BookingPaymentService
 {
+    public function __construct(
+        private readonly BookingNotificationService $bookingNotificationService
+    ) {}
+
     public function confirmPayment(
         Payment $payment,
         ?int $paidAmount = null,
@@ -28,9 +32,10 @@ class BookingPaymentService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            /**
+            /*
              * Idempotency:
-             * Nếu webhook/return bị gọi lại nhiều lần thì không xử lý trùng.
+             * Nếu webhook/return bị gọi lại nhiều lần thì không xử lý trùng,
+             * đồng thời không gửi email lại lần nữa.
              */
             if ($payment->status === 'success' && $booking->status === 'confirmed') {
                 return $payment->load(['booking.items']);
@@ -91,6 +96,25 @@ class BookingPaymentService
                     'gateway_response' => $gatewayResponse,
                 ],
             ]);
+
+            /*
+             * Gửi email sau khi transaction commit thành công.
+             * Như vậy tránh trường hợp DB rollback nhưng email vẫn bị gửi.
+             */
+            DB::afterCommit(function () use ($booking) {
+                $confirmedBooking = Booking::query()
+                    ->with([
+                        'user:id,name,email,phone',
+                        'trip.route:id,from_location,to_location',
+                        'trip.bus:id,name,license_plate',
+                        'items:id,booking_id,seat_number,price',
+                    ])
+                    ->find($booking->id);
+
+                if ($confirmedBooking) {
+                    $this->bookingNotificationService->sendBookingConfirmedEmail($confirmedBooking);
+                }
+            });
 
             return $payment->fresh(['booking.items']);
         });
