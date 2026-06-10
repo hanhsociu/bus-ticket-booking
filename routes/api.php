@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\Admin\AdminBusTypeController;
 use App\Http\Controllers\Api\Admin\AdminRouteController;
 use App\Http\Controllers\Api\Admin\AdminTripController;
 use App\Http\Controllers\Api\Admin\AdminBookingController;
+use App\Http\Controllers\Api\Admin\AdminDashboardController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -85,6 +86,9 @@ Route::middleware(['auth:sanctum', 'admin'])
         Route::get('/bookings', [AdminBookingController::class, 'index']);
         Route::get('/bookings/{booking}', [AdminBookingController::class, 'show']);
         Route::post('/bookings/{booking}/cancel', [AdminBookingController::class, 'cancel']);
+
+
+        Route::get('/dashboard/overview', [AdminDashboardController::class, 'overview']);
 
         /*
         |--------------------------------------------------------------------------
