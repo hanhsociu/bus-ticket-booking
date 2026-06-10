@@ -5,27 +5,26 @@ use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\PayOSPaymentController;
 use App\Http\Controllers\Api\RouteController;
 use App\Http\Controllers\Api\TripController;
+
+use App\Http\Controllers\Api\Admin\AdminBookingController;
 use App\Http\Controllers\Api\Admin\AdminBusController;
 use App\Http\Controllers\Api\Admin\AdminBusTypeController;
+use App\Http\Controllers\Api\Admin\AdminDashboardController;
 use App\Http\Controllers\Api\Admin\AdminRouteController;
 use App\Http\Controllers\Api\Admin\AdminTripController;
-use App\Http\Controllers\Api\Admin\AdminBookingController;
-use App\Http\Controllers\Api\Admin\AdminDashboardController;
+
+use App\Http\Controllers\Api\Customer\CustomerDashboardController;
+
 use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| AUTH
+| AUTH PUBLIC
 |--------------------------------------------------------------------------
 */
 
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login', [AuthController::class, 'login']);
-
-Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/auth/me', [AuthController::class, 'me']);
-    Route::post('/auth/logout', [AuthController::class, 'logout']);
-});
 
 /*
 |--------------------------------------------------------------------------
@@ -40,10 +39,15 @@ Route::get('/trips/{trip}/seats', [TripController::class, 'seats']);
 
 /*
 |--------------------------------------------------------------------------
-| CUSTOMER BOOKING
+| AUTHENTICATED CUSTOMER ROUTES
 |--------------------------------------------------------------------------
 */
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/auth/me', [AuthController::class, 'me']);
+    Route::post('/auth/logout', [AuthController::class, 'logout']);
+
+    Route::get('/customer/dashboard/overview', [CustomerDashboardController::class, 'overview']);
+
     Route::post('/bookings', [BookingController::class, 'store']);
     Route::get('/bookings/{booking}', [BookingController::class, 'show']);
     Route::get('/my/bookings', [BookingController::class, 'myBookings']);
@@ -70,6 +74,8 @@ Route::post('/payments/payos/webhook', [PayOSPaymentController::class, 'webhook'
 Route::middleware(['auth:sanctum', 'admin'])
     ->prefix('admin')
     ->group(function () {
+        Route::get('/dashboard/overview', [AdminDashboardController::class, 'overview']);
+
         Route::apiResource('/routes', AdminRouteController::class);
 
         Route::apiResource('/bus-types', AdminBusTypeController::class);
@@ -82,13 +88,9 @@ Route::middleware(['auth:sanctum', 'admin'])
         Route::get('/trips/{trip}', [AdminTripController::class, 'show']);
         Route::post('/trips/{trip}/cancel', [AdminTripController::class, 'cancel']);
 
-
         Route::get('/bookings', [AdminBookingController::class, 'index']);
         Route::get('/bookings/{booking}', [AdminBookingController::class, 'show']);
         Route::post('/bookings/{booking}/cancel', [AdminBookingController::class, 'cancel']);
-
-
-        Route::get('/dashboard/overview', [AdminDashboardController::class, 'overview']);
 
         /*
         |--------------------------------------------------------------------------
