@@ -33,7 +33,11 @@ class PayOSPaymentController extends Controller
         ]);
 
         $booking = Booking::query()
-            ->with(['items', 'trip.route'])
+            ->with([
+                'items',
+                'trip:id,code,route_id,bus_id,departure_time,arrival_time,status,base_price',
+                'trip.route:id,code,from_location,to_location',
+            ])
             ->where('id', $data['booking_id'])
             ->firstOrFail();
 
@@ -55,6 +59,27 @@ class PayOSPaymentController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Booking đã quá hạn thanh toán. Vui lòng đặt lại ghế.',
+            ], 422);
+        }
+
+        if (!$booking->trip) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Booking không có thông tin chuyến xe.',
+            ], 422);
+        }
+
+        if ($booking->trip->status !== 'scheduled') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Chuyến xe không còn mở bán, không thể tạo thanh toán.',
+            ], 422);
+        }
+
+        if ($booking->trip->departure_time <= now()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Chuyến xe đã khởi hành hoặc đã quá giờ, không thể tạo thanh toán.',
             ], 422);
         }
 
@@ -87,6 +112,7 @@ class PayOSPaymentController extends Controller
                     'qr_code' => $payment->gateway_response['qrCode'] ?? null,
                     'payment_link_id' => $payment->gateway_response['paymentLinkId'] ?? null,
                     'expired_at' => $booking->expired_at,
+                    'trip' => $booking->trip,
                 ],
             ]);
         }
@@ -111,7 +137,7 @@ class PayOSPaymentController extends Controller
             'items' => [
                 [
                     'name' => 'Ve xe ' . $booking->booking_code,
-                    'quantity' => $booking->items->count(),
+                    'quantity' => 1,
                     'price' => $amount,
                 ],
             ],
@@ -142,6 +168,7 @@ class PayOSPaymentController extends Controller
                     'qr_code' => $paymentLink->qrCode ?? null,
                     'payment_link_id' => $paymentLink->paymentLinkId ?? null,
                     'expired_at' => $booking->expired_at,
+                    'trip' => $booking->trip,
                 ],
             ]);
         } catch (\Throwable $e) {
