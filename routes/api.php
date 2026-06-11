@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\Admin\AdminDashboardController;
 use App\Http\Controllers\Api\Admin\AdminRouteController;
 use App\Http\Controllers\Api\Admin\AdminTripController;
 use App\Http\Controllers\Api\Admin\AdminRefundController;
+use App\Http\Controllers\Api\Admin\AdminTripOperationController;
 
 use App\Http\Controllers\Api\Customer\CustomerDashboardController;
 
@@ -97,6 +98,10 @@ Route::middleware(['auth:sanctum', 'admin'])
         Route::get('/refunds', [AdminRefundController::class, 'index']);
         Route::post('/bookings/{booking}/approve-refund', [AdminRefundController::class, 'approve']);
         Route::post('/bookings/{booking}/reject-refund', [AdminRefundController::class, 'reject']);
+
+        Route::post('/trips/{trip}/depart', [AdminTripOperationController::class, 'depart']);
+        Route::post('/trips/{trip}/complete', [AdminTripOperationController::class, 'complete']);
+        Route::get('/trips/{trip}/passengers', [AdminTripOperationController::class, 'passengers']);
 
         /*
         |--------------------------------------------------------------------------
