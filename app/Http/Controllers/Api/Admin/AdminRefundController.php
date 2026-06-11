@@ -7,12 +7,17 @@ use App\Models\Booking;
 use App\Models\BookingHistory;
 use App\Models\Payment;
 use App\Models\TripSeat;
+use App\Services\BookingNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class AdminRefundController extends Controller
 {
+    public function __construct(
+        private readonly BookingNotificationService $bookingNotificationService
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         $query = Booking::query()
@@ -22,7 +27,8 @@ class AdminRefundController extends Controller
                 'trip:id,code,route_id,bus_id,departure_time,arrival_time,status',
                 'trip.route:id,code,from_location,to_location',
                 'trip.bus:id,name,license_plate',
-                'items:id,booking_id,trip_seat_id,seat_number,price',
+                'items:id,booking_id,trip_seat_id,seat_number,price,checked_in_at,checked_in_by',
+                'items.checkedInBy:id,name,email',
                 'payments:id,booking_id,payment_code,method,status,amount,paid_at',
                 'histories:id,booking_id,action,old_status,new_status,note,metadata,created_at',
             ]);
@@ -103,10 +109,6 @@ class AdminRefundController extends Controller
                     ),
                 ]);
 
-                /*
-                 * Vì chuyến chưa khởi hành mới cho refund,
-                 * ta mở lại ghế để khách khác có thể đặt.
-                 */
                 TripSeat::query()
                     ->where('booking_id', $booking->id)
                     ->where('status', 'booked')
@@ -136,14 +138,22 @@ class AdminRefundController extends Controller
                     ],
                 ]);
 
-                return $booking->fresh([
+                $booking = $booking->fresh([
                     'user:id,name,email,phone',
                     'trip.route:id,code,from_location,to_location',
                     'trip.bus:id,name,license_plate',
-                    'items:id,booking_id,trip_seat_id,seat_number,price',
+                    'items:id,booking_id,trip_seat_id,seat_number,price,checked_in_at,checked_in_by',
+                    'items.checkedInBy:id,name,email',
                     'payments:id,booking_id,payment_code,method,status,amount,paid_at,gateway_response',
                     'histories:id,booking_id,action,old_status,new_status,note,metadata,created_at',
                 ]);
+
+                $this->bookingNotificationService->sendRefundApprovedNotification(
+                    booking: $booking,
+                    note: $request->input('note')
+                );
+
+                return $booking;
             });
 
             return response()->json([
@@ -192,14 +202,22 @@ class AdminRefundController extends Controller
                     ],
                 ]);
 
-                return $booking->fresh([
+                $booking = $booking->fresh([
                     'user:id,name,email,phone',
                     'trip.route:id,code,from_location,to_location',
                     'trip.bus:id,name,license_plate',
-                    'items:id,booking_id,trip_seat_id,seat_number,price',
+                    'items:id,booking_id,trip_seat_id,seat_number,price,checked_in_at,checked_in_by',
+                    'items.checkedInBy:id,name,email',
                     'payments:id,booking_id,payment_code,method,status,amount,paid_at',
                     'histories:id,booking_id,action,old_status,new_status,note,metadata,created_at',
                 ]);
+
+                $this->bookingNotificationService->sendRefundRejectedNotification(
+                    booking: $booking,
+                    reason: $request->input('reason')
+                );
+
+                return $booking;
             });
 
             return response()->json([

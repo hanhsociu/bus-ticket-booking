@@ -25,11 +25,12 @@ class BookingNotificationService
             Notification::create([
                 'user_id' => $booking->user_id,
                 'booking_id' => $booking->id,
-                'type' => 'email',
+                'type' => 'booking_confirmed',
                 'title' => 'Xác nhận vé xe ' . $booking->booking_code,
-                'message' => 'Email xác nhận vé đã được gửi thành công.',
+                'message' => 'Vé xe của bạn đã được xác nhận. Email xác nhận đã được gửi thành công.',
                 'status' => 'sent',
                 'sent_at' => now(),
+                'read_at' => null,
                 'metadata' => [
                     'email' => $booking->user->email,
                     'booking_code' => $booking->booking_code,
@@ -39,11 +40,12 @@ class BookingNotificationService
             Notification::create([
                 'user_id' => $booking->user_id,
                 'booking_id' => $booking->id,
-                'type' => 'email',
+                'type' => 'booking_confirmed_email_failed',
                 'title' => 'Xác nhận vé xe ' . $booking->booking_code,
-                'message' => 'Gửi email xác nhận vé thất bại.',
+                'message' => 'Vé xe đã được xác nhận nhưng gửi email thất bại.',
                 'status' => 'failed',
                 'sent_at' => null,
+                'read_at' => null,
                 'metadata' => [
                     'email' => $booking->user->email,
                     'booking_code' => $booking->booking_code,
@@ -51,5 +53,55 @@ class BookingNotificationService
                 ],
             ]);
         }
+    }
+
+    public function sendRefundApprovedNotification(Booking $booking, ?string $note = null): void
+    {
+        $booking->loadMissing([
+            'user:id,name,email,phone',
+            'trip.route:id,from_location,to_location',
+            'trip.bus:id,name,license_plate',
+        ]);
+
+        Notification::create([
+            'user_id' => $booking->user_id,
+            'booking_id' => $booking->id,
+            'type' => 'refund_approved',
+            'title' => 'Yêu cầu hoàn vé đã được duyệt',
+            'message' => 'Yêu cầu hoàn vé cho mã booking ' . $booking->booking_code . ' đã được admin duyệt.',
+            'status' => 'sent',
+            'sent_at' => now(),
+            'read_at' => null,
+            'metadata' => [
+                'booking_code' => $booking->booking_code,
+                'booking_status' => $booking->status,
+                'note' => $note,
+            ],
+        ]);
+    }
+
+    public function sendRefundRejectedNotification(Booking $booking, string $reason): void
+    {
+        $booking->loadMissing([
+            'user:id,name,email,phone',
+            'trip.route:id,from_location,to_location',
+            'trip.bus:id,name,license_plate',
+        ]);
+
+        Notification::create([
+            'user_id' => $booking->user_id,
+            'booking_id' => $booking->id,
+            'type' => 'refund_rejected',
+            'title' => 'Yêu cầu hoàn vé bị từ chối',
+            'message' => 'Yêu cầu hoàn vé cho mã booking ' . $booking->booking_code . ' đã bị từ chối.',
+            'status' => 'sent',
+            'sent_at' => now(),
+            'read_at' => null,
+            'metadata' => [
+                'booking_code' => $booking->booking_code,
+                'booking_status' => $booking->status,
+                'reason' => $reason,
+            ],
+        ]);
     }
 }
