@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\Admin\AdminPassengerCheckInController;
 use App\Http\Controllers\Api\Admin\AdminTicketVerificationController;
 
 use App\Http\Controllers\Api\Customer\CustomerDashboardController;
+use App\Http\Controllers\Api\Customer\CustomerNotificationController;
 
 use Illuminate\Support\Facades\Route;
 
@@ -51,6 +52,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
 
     Route::get('/customer/dashboard/overview', [CustomerDashboardController::class, 'overview']);
+
+    Route::get('/customer/notifications', [CustomerNotificationController::class, 'index']);
+    Route::get('/customer/notifications/unread-count', [CustomerNotificationController::class, 'unreadCount']);
+    Route::post('/customer/notifications/{notification}/mark-as-read', [CustomerNotificationController::class, 'markAsRead']);
+    Route::post('/customer/notifications/mark-all-as-read', [CustomerNotificationController::class, 'markAllAsRead']);
 
     Route::post('/bookings', [BookingController::class, 'store']);
     Route::get('/bookings/{booking}', [BookingController::class, 'show']);
