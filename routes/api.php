@@ -1,27 +1,23 @@
 <?php
 
-use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\BookingController;
-use App\Http\Controllers\Api\PayOSPaymentController;
-use App\Http\Controllers\Api\RouteController;
-use App\Http\Controllers\Api\TripController;
-
 use App\Http\Controllers\Api\Admin\AdminBookingController;
 use App\Http\Controllers\Api\Admin\AdminBusController;
 use App\Http\Controllers\Api\Admin\AdminBusTypeController;
 use App\Http\Controllers\Api\Admin\AdminDashboardController;
-use App\Http\Controllers\Api\Admin\AdminRouteController;
-use App\Http\Controllers\Api\Admin\AdminTripController;
-use App\Http\Controllers\Api\Admin\AdminRefundController;
-use App\Http\Controllers\Api\Admin\AdminTripOperationController;
 use App\Http\Controllers\Api\Admin\AdminPassengerCheckInController;
+use App\Http\Controllers\Api\Admin\AdminRefundController;
+use App\Http\Controllers\Api\Admin\AdminRouteController;
 use App\Http\Controllers\Api\Admin\AdminTicketVerificationController;
+use App\Http\Controllers\Api\Admin\AdminTripController;
+use App\Http\Controllers\Api\Admin\AdminTripOperationController;
 use App\Http\Controllers\Api\Admin\AdminUserController;
-
-
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\Customer\CustomerDashboardController;
 use App\Http\Controllers\Api\Customer\CustomerNotificationController;
-
+use App\Http\Controllers\Api\PayOSPaymentController;
+use App\Http\Controllers\Api\RouteController;
+use App\Http\Controllers\Api\TripController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -57,8 +53,9 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
     Route::get('/customer/notifications', [CustomerNotificationController::class, 'index']);
     Route::get('/customer/notifications/unread-count', [CustomerNotificationController::class, 'unreadCount']);
-    Route::post('/customer/notifications/{notification}/mark-as-read', [CustomerNotificationController::class, 'markAsRead']);
+    // Static route phải đăng ký trước route có {notification} để tránh bind nhầm.
     Route::post('/customer/notifications/mark-all-as-read', [CustomerNotificationController::class, 'markAllAsRead']);
+    Route::post('/customer/notifications/{notification}/mark-as-read', [CustomerNotificationController::class, 'markAsRead']);
 
     Route::post('/bookings', [BookingController::class, 'store']);
     Route::get('/bookings/{booking}', [BookingController::class, 'show']);
@@ -112,7 +109,6 @@ Route::middleware(['auth:sanctum', 'active', 'admin'])
         Route::post('/trips/{trip}/depart', [AdminTripOperationController::class, 'depart']);
         Route::post('/trips/{trip}/complete', [AdminTripOperationController::class, 'complete']);
         Route::get('/trips/{trip}/passengers', [AdminTripOperationController::class, 'passengers']);
-
 
         Route::post('/bookings/{booking}/check-in', [AdminPassengerCheckInController::class, 'checkInBooking']);
         Route::post('/booking-items/{bookingItem}/check-in', [AdminPassengerCheckInController::class, 'checkInItem']);

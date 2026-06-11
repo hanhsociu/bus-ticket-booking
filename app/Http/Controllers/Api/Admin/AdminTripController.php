@@ -235,10 +235,10 @@ class AdminTripController extends Controller
 
     private function generateTripCode(int $routeId, string $departureTime): string
     {
-        $prefix = 'TRIP-' . now()->format('Ymd') . '-R' . $routeId;
+        $prefix = 'TRIP-'.now()->format('Ymd').'-R'.$routeId;
 
         do {
-            $code = $prefix . '-' . strtoupper(Str::random(5));
+            $code = $prefix.'-'.strtoupper(Str::random(5));
         } while (Trip::where('code', $code)->exists());
 
         return $code;

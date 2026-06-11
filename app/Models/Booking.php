@@ -50,4 +50,9 @@ class Booking extends Model
     {
         return $this->hasMany(Payment::class);
     }
+
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(Notification::class);
+    }
 }

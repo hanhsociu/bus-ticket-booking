@@ -56,7 +56,7 @@ class TripController extends Controller
 
     public function show(Trip $trip): JsonResponse
     {
-        if (!$this->isTripOpenForSale($trip)) {
+        if (! $this->isTripOpenForSale($trip)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Chuyến xe không còn mở bán hoặc đã khởi hành.',
@@ -92,7 +92,7 @@ class TripController extends Controller
 
     public function seats(Trip $trip): JsonResponse
     {
-        if (!$this->isTripOpenForSale($trip)) {
+        if (! $this->isTripOpenForSale($trip)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Chuyến xe không còn mở bán hoặc đã khởi hành, không thể xem ghế để đặt vé.',

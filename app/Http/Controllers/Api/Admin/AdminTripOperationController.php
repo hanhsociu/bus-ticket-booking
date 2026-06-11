@@ -218,6 +218,7 @@ class AdminTripOperationController extends Controller
                     'payments' => $booking->payments,
                 ];
             });
+
         return response()->json([
             'success' => true,
             'message' => 'Lấy danh sách hành khách của chuyến thành công.',

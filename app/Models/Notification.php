@@ -15,11 +15,13 @@ class Notification extends Model
         'message',
         'status',
         'sent_at',
+        'read_at',
         'metadata',
     ];
 
     protected $casts = [
         'sent_at' => 'datetime',
+        'read_at' => 'datetime',
         'metadata' => 'array',
     ];
 

@@ -62,7 +62,7 @@ class BookingPaymentService
             $payment->update([
                 'status' => 'success',
                 'paid_at' => now(),
-                'gateway_response' => !empty($gatewayResponse)
+                'gateway_response' => ! empty($gatewayResponse)
                     ? $gatewayResponse
                     : $payment->gateway_response,
             ]);
@@ -131,7 +131,7 @@ class BookingPaymentService
 
             $payment->update([
                 'status' => 'failed',
-                'gateway_response' => !empty($gatewayResponse)
+                'gateway_response' => ! empty($gatewayResponse)
                     ? $gatewayResponse
                     : $payment->gateway_response,
             ]);

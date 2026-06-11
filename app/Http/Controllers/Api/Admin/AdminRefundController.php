@@ -88,7 +88,7 @@ class AdminRefundController extends Controller
                     ->latest()
                     ->first();
 
-                if (!$payment) {
+                if (! $payment) {
                     abort(422, 'Không tìm thấy payment success để hoàn tiền.');
                 }
 

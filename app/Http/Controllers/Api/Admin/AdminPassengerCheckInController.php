@@ -212,20 +212,12 @@ class AdminPassengerCheckInController extends Controller
             abort(422, 'Chỉ booking đã thanh toán thành công mới được check-in.');
         }
 
-        if (!$booking->trip) {
+        if (! $booking->trip) {
             abort(422, 'Booking không có thông tin chuyến xe.');
         }
 
-        if (!in_array($booking->trip->status, ['scheduled', 'departed'], true)) {
+        if (! in_array($booking->trip->status, ['scheduled', 'departed'], true)) {
             abort(422, 'Chỉ có thể check-in cho chuyến đang scheduled hoặc departed.');
-        }
-
-        if ($booking->trip->status === 'completed') {
-            abort(422, 'Chuyến xe đã hoàn thành, không thể check-in.');
-        }
-
-        if ($booking->trip->status === 'cancelled') {
-            abort(422, 'Chuyến xe đã hủy, không thể check-in.');
         }
     }
 }

@@ -110,7 +110,7 @@ class AdminUserController extends Controller
                     abort(422, 'Không thể khóa tài khoản admin bằng API này.');
                 }
 
-                if (!$user->is_active) {
+                if (! $user->is_active) {
                     abort(422, 'Tài khoản này đã bị khóa trước đó.');
                 }
 

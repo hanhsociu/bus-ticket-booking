@@ -12,14 +12,14 @@ class EnsureUserIsActive
     {
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'success' => false,
                 'message' => 'Bạn cần đăng nhập để sử dụng chức năng này.',
             ], 401);
         }
 
-        if (!$user->is_active) {
+        if (! $user->is_active) {
             $user->currentAccessToken()?->delete();
 
             return response()->json([

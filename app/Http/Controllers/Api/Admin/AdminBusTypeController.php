@@ -18,7 +18,7 @@ class AdminBusTypeController extends Controller
             ->withCount(['buses', 'seats']);
 
         if ($request->filled('q')) {
-            $query->where('name', 'like', '%' . $request->query('q') . '%');
+            $query->where('name', 'like', '%'.$request->query('q').'%');
         }
 
         if ($request->filled('is_active')) {
@@ -130,7 +130,7 @@ class AdminBusTypeController extends Controller
 
                         Seat::create([
                             'bus_type_id' => $busType->id,
-                            'seat_number' => $prefix . str_pad((string) ($created + 1), 2, '0', STR_PAD_LEFT),
+                            'seat_number' => $prefix.str_pad((string) ($created + 1), 2, '0', STR_PAD_LEFT),
                             'seat_row' => $row,
                             'seat_column' => $column,
                             'floor' => $floor,

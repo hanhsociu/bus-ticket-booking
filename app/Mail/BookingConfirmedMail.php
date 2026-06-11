@@ -19,7 +19,7 @@ class BookingConfirmedMail extends Mailable
     public function build(): self
     {
         return $this
-            ->subject('Xác nhận vé xe - ' . $this->booking->booking_code)
+            ->subject('Xác nhận vé xe - '.$this->booking->booking_code)
             ->view('emails.bookings.confirmed')
             ->with([
                 'booking' => $this->booking,

@@ -62,7 +62,7 @@ class PayOSPaymentController extends Controller
             ], 422);
         }
 
-        if (!$booking->trip) {
+        if (! $booking->trip) {
             return response()->json([
                 'success' => false,
                 'message' => 'Booking không có thông tin chuyến xe.',
@@ -98,7 +98,7 @@ class PayOSPaymentController extends Controller
             ->latest()
             ->first();
 
-        if ($payment && !empty($payment->gateway_response['checkoutUrl'])) {
+        if ($payment && ! empty($payment->gateway_response['checkoutUrl'])) {
             return response()->json([
                 'success' => true,
                 'message' => 'Booking đã có link thanh toán PayOS. Trả về link hiện có.',
@@ -117,7 +117,7 @@ class PayOSPaymentController extends Controller
             ]);
         }
 
-        if (!$payment) {
+        if (! $payment) {
             $payment = Payment::create([
                 'booking_id' => $booking->id,
                 'payment_code' => $this->generatePaymentCode(),
@@ -128,7 +128,7 @@ class PayOSPaymentController extends Controller
         }
 
         $orderCode = (int) $payment->id;
-        $description = 'BUS' . $booking->id;
+        $description = 'BUS'.$booking->id;
 
         $paymentData = [
             'orderCode' => $orderCode,
@@ -136,13 +136,13 @@ class PayOSPaymentController extends Controller
             'description' => $description,
             'items' => [
                 [
-                    'name' => 'Ve xe ' . $booking->booking_code,
+                    'name' => 'Ve xe '.$booking->booking_code,
                     'quantity' => 1,
                     'price' => $amount,
                 ],
             ],
-            'returnUrl' => config('services.payos.return_url') . '?booking_id=' . $booking->id,
-            'cancelUrl' => config('services.payos.cancel_url') . '?booking_id=' . $booking->id,
+            'returnUrl' => config('services.payos.return_url').'?booking_id='.$booking->id,
+            'cancelUrl' => config('services.payos.cancel_url').'?booking_id='.$booking->id,
         ];
 
         try {
@@ -186,7 +186,7 @@ class PayOSPaymentController extends Controller
         $code = $request->query('code');
         $status = strtoupper((string) $request->query('status'));
 
-        if (!$orderCode) {
+        if (! $orderCode) {
             return response()->json([
                 'success' => true,
                 'message' => 'PayOS đã chuyển hướng về hệ thống nhưng chưa có orderCode.',
@@ -198,7 +198,7 @@ class PayOSPaymentController extends Controller
             ->where('id', $orderCode)
             ->first();
 
-        if (!$payment) {
+        if (! $payment) {
             return response()->json([
                 'success' => false,
                 'message' => 'Không tìm thấy payment tương ứng với orderCode.',
@@ -260,7 +260,7 @@ class PayOSPaymentController extends Controller
             $amount = (int) ($data['amount'] ?? 0);
             $code = (string) ($data['code'] ?? '');
 
-            if (!$orderCode) {
+            if (! $orderCode) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Webhook không có orderCode.',
@@ -271,7 +271,7 @@ class PayOSPaymentController extends Controller
                 ->where('id', $orderCode)
                 ->first();
 
-            if (!$payment) {
+            if (! $payment) {
                 return response()->json([
                     'success' => true,
                     'message' => 'Không tìm thấy payment, bỏ qua webhook.',
@@ -342,6 +342,13 @@ class PayOSPaymentController extends Controller
 
     public function fakeSuccess(Payment $payment): JsonResponse
     {
+        if (! app()->environment(['local', 'testing'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Chức năng fake thanh toán chỉ khả dụng trong môi trường dev.',
+            ], 403);
+        }
+
         try {
             $confirmedPayment = $this->bookingPaymentService->confirmPayment(
                 payment: $payment,
@@ -371,7 +378,7 @@ class PayOSPaymentController extends Controller
     private function generatePaymentCode(): string
     {
         do {
-            $code = 'PAY-' . now()->format('Ymd') . '-' . strtoupper(Str::random(6));
+            $code = 'PAY-'.now()->format('Ymd').'-'.strtoupper(Str::random(6));
         } while (Payment::where('payment_code', $code)->exists());
 
         return $code;

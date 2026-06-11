@@ -32,7 +32,7 @@ class AdminTicketVerificationController extends Controller
             ])
             ->first();
 
-        if (!$booking) {
+        if (! $booking) {
             return response()->json([
                 'success' => false,
                 'message' => 'Không tìm thấy vé với mã booking này.',
@@ -70,7 +70,7 @@ class AdminTicketVerificationController extends Controller
                     ->lockForUpdate()
                     ->first();
 
-                if (!$booking) {
+                if (! $booking) {
                     abort(404, 'Không tìm thấy vé với mã booking này.');
                 }
 
@@ -127,7 +127,7 @@ class AdminTicketVerificationController extends Controller
         } catch (\Throwable $e) {
             $statusCode = (int) $e->getCode();
 
-            if (!in_array($statusCode, [404, 422], true)) {
+            if (! in_array($statusCode, [404, 422], true)) {
                 $statusCode = 422;
             }
 
@@ -144,7 +144,7 @@ class AdminTicketVerificationController extends Controller
             abort(422, 'Chỉ vé đã thanh toán thành công mới được check-in.');
         }
 
-        if (!$booking->trip) {
+        if (! $booking->trip) {
             abort(422, 'Vé không có thông tin chuyến xe.');
         }
 
@@ -152,7 +152,7 @@ class AdminTicketVerificationController extends Controller
             abort(422, 'Chuyến xe đã hủy hoặc đã hoàn thành, không thể check-in.');
         }
 
-        if (!in_array($booking->trip->status, ['scheduled', 'departed'], true)) {
+        if (! in_array($booking->trip->status, ['scheduled', 'departed'], true)) {
             abort(422, 'Trạng thái chuyến xe không cho phép check-in.');
         }
 
@@ -160,7 +160,7 @@ class AdminTicketVerificationController extends Controller
             ->where('status', 'success')
             ->isNotEmpty();
 
-        if (!$hasSuccessfulPayment) {
+        if (! $hasSuccessfulPayment) {
             abort(422, 'Vé chưa có thanh toán thành công.');
         }
     }
@@ -185,17 +185,17 @@ class AdminTicketVerificationController extends Controller
             && $hasSuccessfulPayment
             && $booking->trip
             && in_array($booking->trip->status, ['scheduled', 'departed'], true)
-            && !$isFullyCheckedIn;
+            && ! $isFullyCheckedIn;
 
         $reason = null;
 
         if ($booking->status !== 'confirmed') {
             $reason = 'Vé không ở trạng thái confirmed.';
-        } elseif (!$hasSuccessfulPayment) {
+        } elseif (! $hasSuccessfulPayment) {
             $reason = 'Vé chưa có thanh toán thành công.';
-        } elseif (!$booking->trip) {
+        } elseif (! $booking->trip) {
             $reason = 'Không có thông tin chuyến xe.';
-        } elseif (!in_array($booking->trip->status, ['scheduled', 'departed'], true)) {
+        } elseif (! in_array($booking->trip->status, ['scheduled', 'departed'], true)) {
             $reason = 'Trạng thái chuyến xe không cho phép check-in.';
         } elseif ($isFullyCheckedIn) {
             $reason = 'Vé đã được check-in toàn bộ.';

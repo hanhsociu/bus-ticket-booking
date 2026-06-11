@@ -37,7 +37,7 @@ class SendBookingConfirmedNotificationJob implements ShouldQueue
             ])
             ->find($this->bookingId);
 
-        if (!$booking) {
+        if (! $booking) {
             return;
         }
 

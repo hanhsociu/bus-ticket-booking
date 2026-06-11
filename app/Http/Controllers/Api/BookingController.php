@@ -29,7 +29,7 @@ class BookingController extends Controller
                     ->where('departure_time', '>', now())
                     ->first();
 
-                if (!$trip) {
+                if (! $trip) {
                     abort(422, 'Chuyến xe không hợp lệ hoặc đã khởi hành.');
                 }
 
@@ -56,7 +56,7 @@ class BookingController extends Controller
                 });
 
                 if ($unavailableSeat) {
-                    abort(422, 'Ghế ' . $unavailableSeat->seat->seat_number . ' không còn trống.');
+                    abort(422, 'Ghế '.$unavailableSeat->seat->seat_number.' không còn trống.');
                 }
 
                 $totalAmount = $trip->base_price * $tripSeats->count();
@@ -200,7 +200,7 @@ class BookingController extends Controller
                     abort(422, 'Chỉ booking đã thanh toán thành công mới được yêu cầu hoàn vé.');
                 }
 
-                if (!$booking->trip) {
+                if (! $booking->trip) {
                     abort(422, 'Booking không có thông tin chuyến xe.');
                 }
 
@@ -216,7 +216,7 @@ class BookingController extends Controller
                     ->where('status', 'success')
                     ->exists();
 
-                if (!$successPaymentExists) {
+                if (! $successPaymentExists) {
                     abort(422, 'Không tìm thấy thanh toán thành công cho booking này.');
                 }
 
@@ -344,7 +344,7 @@ class BookingController extends Controller
     private function generateBookingCode(): string
     {
         do {
-            $code = 'BK-' . now()->format('Ymd') . '-' . strtoupper(Str::random(6));
+            $code = 'BK-'.now()->format('Ymd').'-'.strtoupper(Str::random(6));
         } while (Booking::where('booking_code', $code)->exists());
 
         return $code;

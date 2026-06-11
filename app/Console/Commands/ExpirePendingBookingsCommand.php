@@ -24,6 +24,7 @@ class ExpirePendingBookingsCommand extends Command
 
         if ($expiredBookings->isEmpty()) {
             $this->info('Không có booking quá hạn.');
+
             return self::SUCCESS;
         }
 
@@ -34,7 +35,7 @@ class ExpirePendingBookingsCommand extends Command
                     ->lockForUpdate()
                     ->first();
 
-                if (!$booking || $booking->status !== 'pending_payment') {
+                if (! $booking || $booking->status !== 'pending_payment') {
                     return;
                 }
 
@@ -65,7 +66,7 @@ class ExpirePendingBookingsCommand extends Command
             });
         }
 
-        $this->info('Đã xử lý ' . $expiredBookings->count() . ' booking quá hạn.');
+        $this->info('Đã xử lý '.$expiredBookings->count().' booking quá hạn.');
 
         return self::SUCCESS;
     }

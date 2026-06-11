@@ -16,6 +16,10 @@ class Route extends Model
         'is_active',
     ];
 
+    protected $casts = [
+        'is_active' => 'boolean',
+    ];
+
     public function trips(): HasMany
     {
         return $this->hasMany(Trip::class);
