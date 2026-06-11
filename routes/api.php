@@ -16,6 +16,8 @@ use App\Http\Controllers\Api\Admin\AdminRefundController;
 use App\Http\Controllers\Api\Admin\AdminTripOperationController;
 use App\Http\Controllers\Api\Admin\AdminPassengerCheckInController;
 use App\Http\Controllers\Api\Admin\AdminTicketVerificationController;
+use App\Http\Controllers\Api\Admin\AdminUserController;
+
 
 use App\Http\Controllers\Api\Customer\CustomerDashboardController;
 use App\Http\Controllers\Api\Customer\CustomerNotificationController;
@@ -118,6 +120,12 @@ Route::middleware(['auth:sanctum', 'admin'])
 
         Route::get('/tickets/verify', [AdminTicketVerificationController::class, 'verify']);
         Route::post('/tickets/check-in', [AdminTicketVerificationController::class, 'checkInByCode']);
+
+        Route::get('/users', [AdminUserController::class, 'index']);
+        Route::get('/users/{user}', [AdminUserController::class, 'show']);
+        Route::post('/users/{user}/lock', [AdminUserController::class, 'lock']);
+        Route::post('/users/{user}/unlock', [AdminUserController::class, 'unlock']);
+
         /*
         |--------------------------------------------------------------------------
         | DEV / TEST ONLY
