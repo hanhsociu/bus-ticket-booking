@@ -12,10 +12,13 @@ class BookingItem extends Model
         'trip_seat_id',
         'seat_number',
         'price',
+        'checked_in_at',
+        'checked_in_by',
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
+        'checked_in_at' => 'datetime',
     ];
 
     public function booking(): BelongsTo
@@ -26,5 +29,10 @@ class BookingItem extends Model
     public function tripSeat(): BelongsTo
     {
         return $this->belongsTo(TripSeat::class);
+    }
+
+    public function checkedInBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'checked_in_by');
     }
 }

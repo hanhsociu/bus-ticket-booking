@@ -187,7 +187,8 @@ class AdminTripOperationController extends Controller
             ->where('status', 'confirmed')
             ->with([
                 'user:id,name,email,phone',
-                'items:id,booking_id,trip_seat_id,seat_number,price',
+                'items:id,booking_id,trip_seat_id,seat_number,price,checked_in_at,checked_in_by',
+                'items.checkedInBy:id,name,email',
                 'payments:id,booking_id,payment_code,method,status,amount,paid_at',
             ])
             ->latest()
@@ -197,14 +198,26 @@ class AdminTripOperationController extends Controller
                     'booking_id' => $booking->id,
                     'booking_code' => $booking->booking_code,
                     'customer' => $booking->user,
-                    'seats' => $booking->items->pluck('seat_number')->values(),
+                    'seats' => $booking->items->map(function ($item) {
+                        return [
+                            'booking_item_id' => $item->id,
+                            'seat_number' => $item->seat_number,
+                            'price' => (float) $item->price,
+                            'checked_in_at' => $item->checked_in_at,
+                            'checked_in_by' => $item->checkedInBy,
+                            'is_checked_in' => $item->checked_in_at !== null,
+                        ];
+                    })->values(),
+                    'checked_in_count' => $booking->items->whereNotNull('checked_in_at')->count(),
+                    'total_seat_count' => $booking->items->count(),
+                    'is_fully_checked_in' => $booking->items->count() > 0
+                        && $booking->items->whereNotNull('checked_in_at')->count() === $booking->items->count(),
                     'total_amount' => (float) $booking->total_amount,
                     'status' => $booking->status,
                     'confirmed_at' => $booking->confirmed_at,
                     'payments' => $booking->payments,
                 ];
             });
-
         return response()->json([
             'success' => true,
             'message' => 'Lấy danh sách hành khách của chuyến thành công.',
@@ -225,6 +238,7 @@ class AdminTripOperationController extends Controller
                         'blocked' => $trip->blocked_seats_count,
                     ],
                     'booking_count' => $trip->bookings_count,
+                    'passenger_count' => $passengers->count(),
                 ],
                 'passengers' => $passengers,
             ],

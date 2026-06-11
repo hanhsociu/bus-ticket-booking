@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\Admin\AdminRouteController;
 use App\Http\Controllers\Api\Admin\AdminTripController;
 use App\Http\Controllers\Api\Admin\AdminRefundController;
 use App\Http\Controllers\Api\Admin\AdminTripOperationController;
+use App\Http\Controllers\Api\Admin\AdminPassengerCheckInController;
 
 use App\Http\Controllers\Api\Customer\CustomerDashboardController;
 
@@ -103,6 +104,10 @@ Route::middleware(['auth:sanctum', 'admin'])
         Route::post('/trips/{trip}/complete', [AdminTripOperationController::class, 'complete']);
         Route::get('/trips/{trip}/passengers', [AdminTripOperationController::class, 'passengers']);
 
+
+        Route::post('/bookings/{booking}/check-in', [AdminPassengerCheckInController::class, 'checkInBooking']);
+        Route::post('/booking-items/{bookingItem}/check-in', [AdminPassengerCheckInController::class, 'checkInItem']);
+        Route::post('/booking-items/{bookingItem}/undo-check-in', [AdminPassengerCheckInController::class, 'undoCheckInItem']);
         /*
         |--------------------------------------------------------------------------
         | DEV / TEST ONLY
