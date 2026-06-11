@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SendBookingConfirmedNotificationJob;
 use App\Models\Booking;
 use App\Models\BookingHistory;
 use App\Models\Payment;
@@ -10,10 +11,6 @@ use Illuminate\Support\Facades\DB;
 
 class BookingPaymentService
 {
-    public function __construct(
-        private readonly BookingNotificationService $bookingNotificationService
-    ) {}
-
     public function confirmPayment(
         Payment $payment,
         ?int $paidAmount = null,
@@ -35,7 +32,7 @@ class BookingPaymentService
             /*
              * Idempotency:
              * Nếu webhook/return bị gọi lại nhiều lần thì không xử lý trùng,
-             * đồng thời không gửi email lại lần nữa.
+             * đồng thời không dispatch job gửi email lại lần nữa.
              */
             if ($payment->status === 'success' && $booking->status === 'confirmed') {
                 return $payment->load(['booking.items']);
@@ -98,22 +95,14 @@ class BookingPaymentService
             ]);
 
             /*
-             * Gửi email sau khi transaction commit thành công.
-             * Như vậy tránh trường hợp DB rollback nhưng email vẫn bị gửi.
+             * Dispatch job sau khi transaction commit thành công.
+             * Như vậy:
+             * - DB rollback thì không gửi email
+             * - API thanh toán không bị chậm vì SMTP
+             * - Email/notification được xử lý nền bởi queue worker
              */
             DB::afterCommit(function () use ($booking) {
-                $confirmedBooking = Booking::query()
-                    ->with([
-                        'user:id,name,email,phone',
-                        'trip.route:id,from_location,to_location',
-                        'trip.bus:id,name,license_plate',
-                        'items:id,booking_id,seat_number,price',
-                    ])
-                    ->find($booking->id);
-
-                if ($confirmedBooking) {
-                    $this->bookingNotificationService->sendBookingConfirmedEmail($confirmedBooking);
-                }
+                SendBookingConfirmedNotificationJob::dispatch($booking->id);
             });
 
             return $payment->fresh(['booking.items']);
