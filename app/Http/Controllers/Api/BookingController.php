@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 class BookingController extends Controller
 {
@@ -105,7 +106,8 @@ class BookingController extends Controller
                     'trip:id,code,route_id,bus_id,departure_time,arrival_time,base_price,status',
                     'trip.route:id,code,from_location,to_location',
                     'trip.bus:id,name,license_plate',
-                    'items:id,booking_id,trip_seat_id,seat_number,price',
+                    'items:id,booking_id,trip_seat_id,seat_number,price,checked_in_at,checked_in_by',
+                    'items.checkedInBy:id,name,email',
                 ]);
             });
 
@@ -118,7 +120,7 @@ class BookingController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], 422);
+            ], $this->getExceptionStatusCode($e));
         }
     }
 
@@ -135,7 +137,8 @@ class BookingController extends Controller
             'user:id,name,email,phone',
             'trip.route:id,code,from_location,to_location',
             'trip.bus:id,name,license_plate',
-            'items:id,booking_id,trip_seat_id,seat_number,price',
+            'items:id,booking_id,trip_seat_id,seat_number,price,checked_in_at,checked_in_by',
+            'items.checkedInBy:id,name,email',
             'histories:id,booking_id,action,old_status,new_status,note,metadata,created_at',
             'payments:id,booking_id,payment_code,method,status,amount,paid_at',
         ]);
@@ -154,7 +157,8 @@ class BookingController extends Controller
             ->with([
                 'trip.route:id,code,from_location,to_location',
                 'trip.bus:id,name,license_plate',
-                'items:id,booking_id,trip_seat_id,seat_number,price',
+                'items:id,booking_id,trip_seat_id,seat_number,price,checked_in_at,checked_in_by',
+                'items.checkedInBy:id,name,email',
                 'payments:id,booking_id,payment_code,method,status,amount,paid_at',
             ])
             ->latest()
@@ -184,7 +188,7 @@ class BookingController extends Controller
             $booking = DB::transaction(function () use ($booking, $request) {
                 $booking = Booking::query()
                     ->where('id', $booking->id)
-                    ->with('trip')
+                    ->with(['trip'])
                     ->lockForUpdate()
                     ->firstOrFail();
 
@@ -194,6 +198,14 @@ class BookingController extends Controller
 
                 if ($booking->status !== 'confirmed') {
                     abort(422, 'Chỉ booking đã thanh toán thành công mới được yêu cầu hoàn vé.');
+                }
+
+                if (!$booking->trip) {
+                    abort(422, 'Booking không có thông tin chuyến xe.');
+                }
+
+                if ($booking->trip->status !== 'scheduled') {
+                    abort(422, 'Chuyến xe không còn ở trạng thái scheduled, không thể yêu cầu hoàn vé.');
                 }
 
                 if ($booking->trip->departure_time <= now()) {
@@ -206,6 +218,14 @@ class BookingController extends Controller
 
                 if (!$successPaymentExists) {
                     abort(422, 'Không tìm thấy thanh toán thành công cho booking này.');
+                }
+
+                $hasCheckedInItem = $booking->items()
+                    ->whereNotNull('checked_in_at')
+                    ->exists();
+
+                if ($hasCheckedInItem) {
+                    abort(422, 'Vé đã được check-in, không thể yêu cầu hoàn vé.');
                 }
 
                 $booking->update([
@@ -228,7 +248,8 @@ class BookingController extends Controller
                     'user:id,name,email,phone',
                     'trip.route:id,code,from_location,to_location',
                     'trip.bus:id,name,license_plate',
-                    'items:id,booking_id,trip_seat_id,seat_number,price',
+                    'items:id,booking_id,trip_seat_id,seat_number,price,checked_in_at,checked_in_by',
+                    'items.checkedInBy:id,name,email',
                     'payments:id,booking_id,payment_code,method,status,amount,paid_at',
                     'histories:id,booking_id,action,old_status,new_status,note,metadata,created_at',
                 ]);
@@ -243,7 +264,7 @@ class BookingController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getCode() === 403 ? 403 : 422);
+            ], $this->getExceptionStatusCode($e));
         }
     }
 
@@ -268,7 +289,7 @@ class BookingController extends Controller
                 }
 
                 if ($booking->status !== 'pending_payment') {
-                    abort(422, 'Chỉ có thể hủy booking đang chờ thanh toán.');
+                    abort(422, 'Chỉ booking đang chờ thanh toán mới được hủy.');
                 }
 
                 TripSeat::query()
@@ -290,15 +311,19 @@ class BookingController extends Controller
                     'action' => 'booking_cancelled',
                     'old_status' => 'pending_payment',
                     'new_status' => 'cancelled',
-                    'note' => 'Người dùng hủy booking trước khi thanh toán.',
+                    'note' => 'Khách hàng hủy booking trước khi thanh toán.',
                     'metadata' => [
-                        'cancelled_by' => 'user',
                         'user_id' => $request->user()->id,
                     ],
                 ]);
 
                 return $booking->fresh([
-                    'items:id,booking_id,trip_seat_id,seat_number,price',
+                    'user:id,name,email,phone',
+                    'trip.route:id,code,from_location,to_location',
+                    'trip.bus:id,name,license_plate',
+                    'items:id,booking_id,trip_seat_id,seat_number,price,checked_in_at,checked_in_by',
+                    'items.checkedInBy:id,name,email',
+                    'payments:id,booking_id,payment_code,method,status,amount,paid_at',
                     'histories:id,booking_id,action,old_status,new_status,note,metadata,created_at',
                 ]);
             });
@@ -312,7 +337,7 @@ class BookingController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], $e->getCode() === 403 ? 403 : 422);
+            ], $this->getExceptionStatusCode($e));
         }
     }
 
@@ -323,5 +348,14 @@ class BookingController extends Controller
         } while (Booking::where('booking_code', $code)->exists());
 
         return $code;
+    }
+
+    private function getExceptionStatusCode(\Throwable $e): int
+    {
+        if ($e instanceof HttpExceptionInterface) {
+            return $e->getStatusCode();
+        }
+
+        return 422;
     }
 }
