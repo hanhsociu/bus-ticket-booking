@@ -49,7 +49,7 @@ Route::get('/trips/{trip}/seats', [TripController::class, 'seats']);
 | AUTHENTICATED CUSTOMER ROUTES
 |--------------------------------------------------------------------------
 */
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
 
@@ -84,7 +84,7 @@ Route::post('/payments/payos/webhook', [PayOSPaymentController::class, 'webhook'
 | ADMIN ROUTES
 |--------------------------------------------------------------------------
 */
-Route::middleware(['auth:sanctum', 'admin'])
+Route::middleware(['auth:sanctum', 'active', 'admin'])
     ->prefix('admin')
     ->group(function () {
         Route::get('/dashboard/overview', [AdminDashboardController::class, 'overview']);
