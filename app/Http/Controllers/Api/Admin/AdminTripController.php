@@ -83,6 +83,7 @@ class AdminTripController extends Controller
                     'arrival_time' => $data['arrival_time'],
                     'base_price' => $data['base_price'],
                     'status' => 'scheduled',
+                    'trip_type' => 'special',
                 ]);
 
                 $generatedSeatCount = $this->tripSeatGenerationService->generateForTrip($trip);

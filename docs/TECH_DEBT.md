@@ -144,7 +144,15 @@ Trên MySQL strict, insert/update có thể fail. SQLite dev thường không en
 
 ---
 
-## 14. `fake-success` endpoint
+## 14. Bus overlap check trùng lặp
+
+**Vấn đề:** Logic `busHasOverlap` nằm trong `AdminTripController` và `TripScheduleGenerationService`.
+
+**Đề xuất:** Tách `BusAvailabilityService::hasOverlap(busId, departure, arrival, ?excludeTripId)` dùng chung.
+
+---
+
+## 15. `fake-success` endpoint
 
 **Hiện trạng:** Đã thêm guard `local` / `testing` trong cleanup PR.
 

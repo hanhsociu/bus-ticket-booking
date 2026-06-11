@@ -11,11 +11,13 @@ class Trip extends Model
     protected $fillable = [
         'route_id',
         'bus_id',
+        'trip_schedule_id',
         'code',
         'departure_time',
         'arrival_time',
         'base_price',
         'status',
+        'trip_type',
     ];
 
     protected $casts = [
@@ -32,6 +34,11 @@ class Trip extends Model
     public function bus(): BelongsTo
     {
         return $this->belongsTo(Bus::class);
+    }
+
+    public function tripSchedule(): BelongsTo
+    {
+        return $this->belongsTo(TripSchedule::class);
     }
 
     public function tripSeats(): HasMany

@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\Admin\AdminRouteController;
 use App\Http\Controllers\Api\Admin\AdminTicketVerificationController;
 use App\Http\Controllers\Api\Admin\AdminTripController;
 use App\Http\Controllers\Api\Admin\AdminTripOperationController;
+use App\Http\Controllers\Api\Admin\AdminTripScheduleController;
 use App\Http\Controllers\Api\Admin\AdminUserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
@@ -92,6 +93,9 @@ Route::middleware(['auth:sanctum', 'active', 'admin'])
         Route::post('/bus-types/{busType}/generate-seats', [AdminBusTypeController::class, 'generateSeats']);
 
         Route::apiResource('/buses', AdminBusController::class);
+
+        Route::apiResource('/trip-schedules', AdminTripScheduleController::class);
+        Route::post('/trip-schedules/{tripSchedule}/generate', [AdminTripScheduleController::class, 'generate']);
 
         Route::get('/trips', [AdminTripController::class, 'index']);
         Route::post('/trips', [AdminTripController::class, 'store']);
